@@ -1,0 +1,10 @@
+SELECT 
+   Dev as device, 
+   DATEADD(hour, 9, EventEnqueuedUtcTime) as time, 
+   EventEnqueuedUtcTime as utctime, 
+   params.TempValue as TempValue, 
+   params.HumiValue as HumiValue
+INTO 
+   outputpowerbi 
+FROM 
+   inputiothub
