@@ -2,18 +2,19 @@
 #include <AzureIoTHub.h>
 #include <DHT.h>
 
-#define WIFI_SSID "WIFI"
-#define WIFI_PASS "PASSWORD"
-#define AZURE_KEY "プライマリ接続文字列"
-
+#define WIFI_SSID "Wifi"
+#define WIFI_PASS "pass"
+#define AZURE_KEY "プライマリ接続キー"
 #define DHTPIN 2
 #define DHTTYPE DHT22
+
 DHT dht(DHTPIN, DHTTYPE);
-
 int fail_count = 0;
-
 unsigned long durationtime;
 unsigned long pretime;
+
+unsigned long lastDataSendTime = 0; 
+const unsigned long dataSendInterval = 300000; 
 
 void azureCallback(String s) {
   Serial.print("Azure Message arrived [");
@@ -30,53 +31,52 @@ void setup()
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   Azure.begin(AZURE_KEY);
   Azure.setCallback(azureCallback);  
-  delay(5); 
 
   dht.begin();
-  delay(5);
 }
 
 void loop()
 {
   if (WiFi.status() == WL_CONNECTED) {
     Azure.connect();
-    DataElement a = DataElement();
 
-    durationtime = (millis() - pretime)/1000;
-    pretime = millis();
+    if (millis() - lastDataSendTime >= dataSendInterval) {
+      lastDataSendTime = millis();
+      DataElement a = DataElement();
 
-    Serial.print("duration time: "); 
-    Serial.print(durationtime);
-    Serial.println(" sec for this loop");
+      durationtime = (millis() - pretime)/1000;
+      pretime = millis();
 
-    float humidity = dht.readHumidity();
-    float temperature = dht.readTemperature();
+      Serial.print("duration time: "); 
+      Serial.print(durationtime);
+      Serial.println(" sec for this loop");
 
-    if (isnan(humidity) || isnan(temperature)) {
-      Serial.println("Failed to read from DHT sensor!");
-      return;
+      float humidity = dht.readHumidity();
+      float temperature = dht.readTemperature();
+
+      if (isnan(humidity) || isnan(temperature)) {
+        Serial.println("Failed to read from DHT sensor!");
+      } else {
+        Serial.print("Temp: "); 
+        Serial.print(temperature, 4);
+        Serial.println("*C");
+        Serial.print("Humi: "); 
+        Serial.print(humidity, 4);
+        Serial.println("%"); 
+
+        a.setValue("Sensor", "DHT22");    
+        a.setValue("TempValue", temperature);
+        a.setValue("HumiValue", humidity);
+        a.setValue("duration", (int)durationtime);
+        Azure.push(&a);
+      }
     }
-
-    Serial.print("Temp: "); 
-    Serial.print(temperature, 4);
-    Serial.println("*C");
-    Serial.print("Humi: "); 
-    Serial.print(humidity, 4);
-    Serial.println("%"); 
-
-    a.setValue("Sensor", "DHT22-2");    
-    a.setValue("TempValue", temperature);
-    a.setValue("HumiValue", humidity);
-    a.setValue("duration", (int)durationtime);
-    Azure.push(&a);
-
-    delay(5000);
   } else {
     Serial.print("Not connected to the Internet:");
     Serial.println(WiFi.status());
     delay(250);
 
-    if(50 <= fail_count++){
+    if(50 <= fail_count++) {
       ESP.restart();
     }
   }
